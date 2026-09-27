@@ -29,8 +29,16 @@ app.use('/api/devices', deviceRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/keywords', keywordRoutes);
 
+const fs = require('fs');
+
 // Serve Frontend Static Files if available (for Parent Web Dashboard)
-const frontendPublicPath = path.join(__dirname, '../../frontend/public');
+const candidatePaths = [
+  path.join(__dirname, '../../frontend/public'),
+  path.join(__dirname, '../frontend/public'),
+  path.join(process.cwd(), 'frontend/public'),
+  path.join(__dirname, 'public')
+];
+const frontendPublicPath = candidatePaths.find(p => fs.existsSync(p)) || candidatePaths[0];
 app.use(express.static(frontendPublicPath));
 
 // Fallback for SPA routing
@@ -39,11 +47,10 @@ app.get('*', (req, res, next) => {
     return next();
   }
   const indexPath = path.join(frontendPublicPath, 'index.html');
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      next();
-    }
-  });
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  next();
 });
 
 // 404 handler for unmatched API routes

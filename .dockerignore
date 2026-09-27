@@ -1,0 +1,12 @@
+node_modules
+backend/node_modules
+android-client
+.git
+.github
+*.log
+.env
+.env.*
+Dockerfile
+.dockerignore
+.gitignore
+README.md
