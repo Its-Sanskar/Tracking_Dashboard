@@ -1,0 +1,24 @@
+{
+  "name": "child-tracker-backend",
+  "version": "1.0.0",
+  "description": "Child Notification Tracking Backend with MongoDB & Socket.io",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node test/test-api.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.1.3",
+    "nodemon": "^3.1.9"
+  }
+}

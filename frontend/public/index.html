@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChildGuard — Real-Time Child Notification & Safety Monitor</title>
+  <meta name="description" content="Parental monitoring dashboard for real-time app notifications, message screening, and safety alert detection.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Socket.io Client -->
+  <script src="/socket.io/socket.io.js"></script>
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient background glow effects -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <div id="app" class="app-container">
+    <!-- Auth View (Login / Register Modal) -->
+    <div id="authView" class="auth-overlay">
+      <div class="auth-card glass-panel">
+        <div class="auth-header">
+          <div class="brand-badge">
+            <span class="shield-icon">🛡️</span>
+            <h1>ChildGuard</h1>
+          </div>
+          <p class="subtitle">Real-Time Notification & Child Safety Monitor</p>
+        </div>
+
+        <div class="auth-tabs">
+          <button id="tabLogin" class="tab-btn active">Sign In</button>
+          <button id="tabRegister" class="tab-btn">Create Account</button>
+        </div>
+
+        <form id="authForm" class="auth-form">
+          <div class="form-group" id="fullNameGroup" style="display: none;">
+            <label for="authFullName">Full Name</label>
+            <input type="text" id="authFullName" placeholder="e.g. Sanskar Gupta">
+          </div>
+
+          <div class="form-group">
+            <label for="authEmail">Email Address</label>
+            <input type="email" id="authEmail" required placeholder="parent@example.com">
+          </div>
+
+          <div class="form-group">
+            <label for="authPassword">Password</label>
+            <input type="password" id="authPassword" required placeholder="••••••••">
+          </div>
+
+          <button type="submit" id="authSubmitBtn" class="btn-primary">Sign In</button>
+        </form>
+
+        <p id="authError" class="error-msg" style="display: none;"></p>
+      </div>
+    </div>
+
+    <!-- Main Dashboard View -->
+    <div id="dashboardView" class="dashboard-layout" style="display: none;">
+      <!-- Top Navigation Bar -->
+      <header class="top-nav glass-panel">
+        <div class="nav-left">
+          <div class="brand-logo">
+            <span class="shield-icon">🛡️</span>
+            <span class="brand-title">ChildGuard</span>
+            <span class="status-indicator live-pulse">LIVE</span>
+          </div>
+
+          <div class="device-selector-wrapper">
+            <label for="deviceSelect" class="sr-only">Active Device</label>
+            <select id="deviceSelect" class="glass-select">
+              <option value="all">📱 All Devices</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="nav-center" id="deviceTelemetryBar">
+          <div class="telemetry-item">
+            <span class="telemetry-label">Status:</span>
+            <span id="deviceStatusPill" class="status-pill online">● Online</span>
+          </div>
+          <div class="telemetry-item">
+            <span class="telemetry-label">Battery:</span>
+            <span id="deviceBatteryLevel" class="battery-pill">🔋 92%</span>
+          </div>
+          <div class="telemetry-item">
+            <span class="telemetry-label">Last Sync:</span>
+            <span id="deviceLastSync" class="telemetry-val">Just now</span>
+          </div>
+        </div>
+
+        <div class="nav-right">
+          <button id="btnPairDevice" class="btn-secondary" title="Pair new child phone">
+            <span>➕</span> Pair Child Phone
+          </button>
+          <button id="btnOpenSimulator" class="btn-secondary simulator-btn" title="Simulate incoming notifications for testing">
+            <span>🧪</span> Simulator
+          </button>
+          <button id="btnLogout" class="btn-icon" title="Sign Out">
+            <span>🚪</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Stats Metric Cards -->
+      <section class="metrics-row">
+        <div class="metric-card glass-panel">
+          <div class="metric-icon">📥</div>
+          <div class="metric-info">
+            <span class="metric-title">Total Intercepted</span>
+            <span id="statTotal" class="metric-value">0</span>
+          </div>
+        </div>
+
+        <div class="metric-card glass-panel">
+          <div class="metric-icon">💬</div>
+          <div class="metric-info">
+            <span class="metric-title">Today's Messages</span>
+            <span id="statToday" class="metric-value">0</span>
+          </div>
+        </div>
+
+        <div class="metric-card glass-panel danger-glow">
+          <div class="metric-icon">⚠️</div>
+          <div class="metric-info">
+            <span class="metric-title">Safety Flags</span>
+            <span id="statFlagged" class="metric-value flagged">0</span>
+          </div>
+        </div>
+
+        <div class="metric-card glass-panel">
+          <div class="metric-icon">📱</div>
+          <div class="metric-info">
+            <span class="metric-title">Monitored Apps</span>
+            <span id="statAppsCount" class="metric-value">0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Main Content Grid -->
+      <main class="main-content">
+        <!-- Sidebar Controls & Watchlist -->
+        <aside class="sidebar glass-panel">
+          <div class="filter-section">
+            <h3 class="section-heading">Filter by App</h3>
+            <div class="app-filter-list">
+              <button class="app-filter-btn active" data-app="all">
+                <span class="app-icon">🌐</span> All Apps
+                <span class="badge-count" id="countAll">0</span>
+              </button>
+              <button class="app-filter-btn app-whatsapp" data-app="com.whatsapp">
+                <span class="app-icon">💬</span> WhatsApp
+                <span class="badge-count" id="countWhatsApp">0</span>
+              </button>
+              <button class="app-filter-btn app-instagram" data-app="com.instagram.android">
+                <span class="app-icon">📸</span> Instagram
+                <span class="badge-count" id="countInstagram">0</span>
+              </button>
+              <button class="app-filter-btn app-snapchat" data-app="com.snapchat.android">
+                <span class="app-icon">👻</span> Snapchat
+                <span class="badge-count" id="countSnapchat">0</span>
+              </button>
+              <button class="app-filter-btn app-sms" data-app="com.google.android.apps.messaging">
+                <span class="app-icon">✉️</span> Messages (SMS)
+                <span class="badge-count" id="countSms">0</span>
+              </button>
+              <button class="app-filter-btn app-flagged" data-app="flagged_only">
+                <span class="app-icon">🚨</span> Flagged Threats
+                <span class="badge-count danger" id="countFlagged">0</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="safety-watchlist-section">
+            <div class="watchlist-header">
+              <h3 class="section-heading">Safety Watchlist</h3>
+              <button id="btnOpenAddKeyword" class="btn-text">+ Add Word</button>
+            </div>
+            <p class="section-desc">Messages containing these terms trigger safety alerts.</p>
+            <div id="keywordsList" class="keyword-tags">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </aside>
+
+        <!-- Feed Section -->
+        <section class="feed-section glass-panel">
+          <!-- Search & Filter Controls -->
+          <div class="feed-header">
+            <div class="search-bar-wrapper">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="searchInput" placeholder="Search by sender, message, or keyword...">
+              <button id="btnClearSearch" class="btn-clear" style="display: none;">✕</button>
+            </div>
+
+            <div class="feed-actions">
+              <button id="btnRefreshFeed" class="btn-icon" title="Refresh Feed">
+                <span>🔄</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Notification Cards Stream -->
+          <div id="notificationFeed" class="notifications-list">
+            <div class="empty-state" id="feedEmptyState">
+              <div class="empty-icon">📡</div>
+              <h4>Waiting for incoming notifications...</h4>
+              <p>Pair the child's phone or use the <strong>🧪 Simulator</strong> to test instant notification push.</p>
+            </div>
+          </div>
+
+          <!-- Pagination -->
+          <div id="feedPagination" class="pagination-bar" style="display: none;">
+            <button id="btnPrevPage" class="btn-pagination" disabled>Previous</button>
+            <span id="pageInfo">Page 1 of 1</span>
+            <button id="btnNextPage" class="btn-pagination" disabled>Next</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Modal 1: Pair New Device -->
+    <div id="pairingModal" class="modal-overlay" style="display: none;">
+      <div class="modal-card glass-panel">
+        <div class="modal-header">
+          <h3>Pair Child's Android Phone</h3>
+          <button class="btn-close-modal" data-close="pairingModal">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>Generate a secure 6-digit link code to pair with the <strong>ChildGuard Android App</strong>.</p>
+          
+          <div class="form-group">
+            <label for="pairingDeviceName">Device Nickname</label>
+            <input type="text" id="pairingDeviceName" placeholder="e.g. Sanskar's Galaxy Phone">
+          </div>
+
+          <button id="btnGenerateCode" class="btn-primary">Generate Pairing Code</button>
+
+          <div id="pairingCodeDisplay" class="pairing-code-box" style="display: none;">
+            <span class="code-label">Enter this code on the child's app:</span>
+            <div id="pairingCodeDigits" class="digits-display">------</div>
+            <span class="code-timer">⏱️ Valid for 15 minutes</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 2: Notification Simulator (For instant browser testing) -->
+    <div id="simulatorModal" class="modal-overlay" style="display: none;">
+      <div class="modal-card glass-panel">
+        <div class="modal-header">
+          <h3>🧪 Live Notification Simulator</h3>
+          <button class="btn-close-modal" data-close="simulatorModal">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">Simulate an incoming notification from WhatsApp, Instagram, Snapchat, etc., to verify the live pipeline immediately.</p>
+          
+          <form id="simulatorForm">
+            <div class="form-group">
+              <label for="simApp">Target Application</label>
+              <select id="simApp" class="glass-select">
+                <option value="com.whatsapp|WhatsApp">WhatsApp</option>
+                <option value="com.instagram.android|Instagram">Instagram</option>
+                <option value="com.snapchat.android|Snapchat">Snapchat</option>
+                <option value="com.google.android.apps.messaging|Messages (SMS)">Google Messages (SMS)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="simSender">Sender / Contact Name</label>
+              <input type="text" id="simSender" value="Alex Miller" required>
+            </div>
+
+            <div class="form-group">
+              <label for="simContent">Message Content</label>
+              <textarea id="simContent" rows="3" required placeholder="Type a message or try typing 'secret meet' or 'kys' to test danger alert!"></textarea>
+            </div>
+
+            <div class="quick-presets">
+              <span>Quick Presets:</span>
+              <button type="button" class="preset-btn" data-preset="whatsapp-normal">WhatsApp Normal</button>
+              <button type="button" class="preset-btn" data-preset="instagram-dm">Instagram Reel</button>
+              <button type="button" class="preset-btn danger-preset" data-preset="danger-keyword">🚨 Threat Alert Trigger</button>
+            </div>
+
+            <button type="submit" class="btn-primary" style="margin-top: 16px;">Send Simulated Notification</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 3: Add Custom Keyword -->
+    <div id="keywordModal" class="modal-overlay" style="display: none;">
+      <div class="modal-card glass-panel">
+        <div class="modal-header">
+          <h3>Add Safety Alert Keyword</h3>
+          <button class="btn-close-modal" data-close="keywordModal">✕</button>
+        </div>
+        <div class="modal-body">
+          <form id="keywordForm">
+            <div class="form-group">
+              <label for="kwInput">Keyword or Phrase to Flag</label>
+              <input type="text" id="kwInput" required placeholder="e.g. bunker, party tonight, don't tell">
+            </div>
+
+            <div class="form-group">
+              <label for="kwSeverity">Threat Level</label>
+              <select id="kwSeverity" class="glass-select">
+                <option value="HIGH">HIGH (Immediate Flag)</option>
+                <option value="CRITICAL">CRITICAL (Urgent Alert)</option>
+                <option value="MEDIUM">MEDIUM (Watchlist)</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn-primary">Add to Watchlist</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript Application -->
+  <script src="app.js"></script>
+</body>
+</html>
